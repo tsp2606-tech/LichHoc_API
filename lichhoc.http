@@ -1,5 +1,5 @@
 ### 1. Thêm lịch học mới
-POST http://localhost:5000/api/lich-hoc
+POST http://localhost:3001/api/lich-hoc
 Content-Type: application/json
 
 {
@@ -14,15 +14,15 @@ Content-Type: application/json
 }
 
 ### 2. Lấy danh sách tất cả lịch học
-GET http://localhost:5000/api/lich-hoc
+GET http://localhost:3001/api/lich-hoc
 
 ### 3. Lấy thông tin chi tiết lịch học theo ID
 # Thay thế {id} bằng ID thực tế nhận được từ API thêm hoặc danh sách
-GET http://localhost:5000/api/lich-hoc/66b437c9ce982033cd76a63
+GET http://localhost:3001/api/lich-hoc/66b437c9ce982033cd76a63
 
 ### 4. Cập nhật thông tin lịch học theo ID
 # Thay thế {id} bằng ID thực tế cần sửa
-PUT http://localhost:5000/api/lich-hoc/66b437c9ce982033cd76a63
+PUT http://localhost:3001/api/lich-hoc/66b437c9ce982033cd76a63
 Content-Type: application/json
 
 {
@@ -38,4 +38,4 @@ Content-Type: application/json
 
 ### 5. Xóa lịch học theo ID
 # Thay thế {id} bằng ID thực tế cần xóa
-DELETE http://localhost:5000/api/lich-hoc/66b437c9ce982033cd76a63
+DELETE http://localhost:3001/api/lich-hoc/66b437c9ce982033cd76a63

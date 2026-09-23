@@ -6,24 +6,28 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 
 ## 📌 1. Thông Tin Chung & Cấu Hình Kết Nối
 
-| Dịch vụ | Công nghệ | Cổng mặc định (Port) | Base URL | Mô tả chính |
-| :--- | :--- | :---: | :--- | :--- |
-| **Schedule & Auth API** | Python (Flask, SQLite, JWT) | `5000` | `http://localhost:5000` | Xác thực JWT, bóc tách `outerHTML`, lưu lịch theo từng User, Admin Dashboard |
-| **LichHoc CRUD API** | Node.js (Express, MongoDB) | `5001` / `5000` | `http://localhost:5001` | Quản lý CRUD thông tin môn học, Swagger UI tại `/api-docs` |
+| Dịch vụ                 | Công nghệ                   | Cổng mặc định (Port) | Base URL                | Mô tả chính                                                                  |
+| :---------------------- | :-------------------------- | :------------------: | :---------------------- | :--------------------------------------------------------------------------- |
+| **Schedule & Auth API** | Python (Flask, SQLite, JWT) |        `3001`        | `http://localhost:3001` | Xác thực JWT, bóc tách `outerHTML`, lưu lịch theo từng User, Admin Dashboard |
+| **LichHoc CRUD API**    | Node.js (Express, MongoDB)  |   `5001` / `3001`    | `http://localhost:5001` | Quản lý CRUD thông tin môn học, Swagger UI tại `/api-docs`                   |
 
 ### Quy ước Headers:
+
 - Khi gửi dữ liệu JSON: `Content-Type: application/json`
 - Với các route yêu cầu đăng nhập: `Authorization: Bearer <access_token>`
 
 ---
 
 ## 🔐 2. Nhóm API Xác Thực Người Dùng (Authentication)
-*Áp dụng trên Python Flask Server (`http://localhost:5000`)*
+
+_Áp dụng trên Python Flask Server (`http://localhost:3001`)_
 
 ### 2.1. Đăng ký tài khoản
+
 - **Route:** `POST /api/auth/register`
-- **Yêu cầu Auth:** *Không*
+- **Yêu cầu Auth:** _Không_
 - **Request Body (JSON):**
+
 ```json
 {
   "email": "student@example.com",
@@ -31,7 +35,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   "is_admin": false
 }
 ```
+
 - **Response (201 Created):**
+
 ```json
 {
   "message": "Đăng ký thành công",
@@ -43,7 +49,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   }
 }
 ```
+
 - **Lỗi (400 Bad Request):**
+
 ```json
 {
   "error": "Email đã tồn tại trong hệ thống"
@@ -53,16 +61,20 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ### 2.2. Đăng nhập hệ thống
+
 - **Route:** `POST /api/auth/login`
-- **Yêu cầu Auth:** *Không*
+- **Yêu cầu Auth:** _Không_
 - **Request Body (JSON):**
+
 ```json
 {
   "email": "student@example.com",
   "password": "password123"
 }
 ```
+
 - **Response (200 OK):**
+
 ```json
 {
   "message": "Đăng nhập thành công",
@@ -75,7 +87,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   }
 }
 ```
+
 - **Lỗi (401 Unauthorized):**
+
 ```json
 {
   "error": "Email hoặc mật khẩu không chính xác"
@@ -85,19 +99,24 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ## 📅 3. Nhóm API Bóc Tách & Quản Lý Lịch Học (Schedule API)
-*Áp dụng trên Python Flask Server (`http://localhost:5000`)*
+
+_Áp dụng trên Python Flask Server (`http://localhost:3001`)_
 
 ### 3.1. Bóc tách mã outerHTML sang danh sách JSON
+
 - **Route:** `POST /api/schedule/parse`
-- **Yêu cầu Auth:** *Không* (Công khai, FE có thể gọi trực tiếp)
+- **Yêu cầu Auth:** _Không_ (Công khai, FE có thể gọi trực tiếp)
 - **Mô tả:** Nhận toàn bộ chuỗi HTML bảng lịch của trường (ASP.NET RadScheduler) và trả về mảng danh sách các môn học đã được chuẩn hóa.
 - **Request Body (JSON):**
+
 ```json
 {
   "html": "<table class=\"rsContentTable\">...</table>"
 }
 ```
+
 - **Response (200 OK):**
+
 ```json
 {
   "count": 2,
@@ -125,7 +144,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   ]
 }
 ```
+
 - **Lỗi (400 Bad Request):**
+
 ```json
 {
   "error": "Thiếu trường 'html' trong body"
@@ -135,10 +156,12 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ### 3.2. Lưu lịch học vào Database theo Tài Khoản
+
 - **Route:** `POST /api/schedule`
 - **Yêu cầu Auth:** **Bắt buộc** (`Authorization: Bearer <token>`)
 - **Mô tả:** Lưu lịch học gắn với `user_id` của tài khoản đang đăng nhập. Hỗ trợ gửi mảng `events` (đã parse) hoặc gửi thẳng chuỗi `html` để server tự parse và lưu.
 - **Cách 1: Gửi mảng `events`:**
+
 ```json
 {
   "events": [
@@ -155,13 +178,17 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   ]
 }
 ```
+
 - **Cách 2: Gửi trực tiếp chuỗi `html`:**
+
 ```json
 {
   "html": "<table>...</table>"
 }
 ```
+
 - **Response (201 Created):**
+
 ```json
 {
   "message": "Lưu lịch học thành công",
@@ -183,7 +210,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   ]
 }
 ```
+
 - **Lỗi chưa đăng nhập (401 Unauthorized):**
+
 ```json
 {
   "error": "Thiếu token xác thực hoặc token không hợp lệ"
@@ -193,10 +222,12 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ### 3.3. Lấy danh sách lịch học của User đang đăng nhập
+
 - **Route:** `GET /api/schedule`
 - **Yêu cầu Auth:** **Bắt buộc** (`Authorization: Bearer <token>`)
 - **Mô tả:** Trả về danh sách tất cả các môn học đã lưu của chính tài khoản đang đăng nhập.
 - **Response (200 OK):**
+
 ```json
 {
   "count": 1,
@@ -221,9 +252,11 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ### 3.4. Kiểm tra sức khỏe hệ thống (Health Check)
+
 - **Route:** `GET /api/schedule/health`
-- **Yêu cầu Auth:** *Không*
+- **Yêu cầu Auth:** _Không_
 - **Response (200 OK):**
+
 ```json
 {
   "status": "ok"
@@ -233,16 +266,19 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ## 🛡️ 4. Nhóm API Quản Trị Hệ Thống (Admin Only)
-*Áp dụng trên Python Flask Server (`http://localhost:5000`)*
+
+_Áp dụng trên Python Flask Server (`http://localhost:3001`)_
 
 > [!IMPORTANT]
 > Các endpoint này chỉ tài khoản có `is_admin: true` mới có thể gọi. User thường truy cập sẽ nhận mã lỗi `403 Forbidden`.
 
 ### 4.1. Xem Dashboard Quản Trị
+
 - **Route:** `GET /admin/dashboard`
 - **Yêu cầu Auth:** **Bắt buộc Admin**
 - **Query params (tùy chọn):** `?format=json` (nếu muốn nhận dữ liệu thô dạng JSON thay vì giao diện HTML).
 - **Response (200 OK - dạng JSON):**
+
 ```json
 {
   "total_users": 2,
@@ -267,7 +303,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   ]
 }
 ```
+
 - **Lỗi không phải Admin (403 Forbidden):**
+
 ```json
 {
   "error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."
@@ -277,10 +315,12 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ### 4.2. Admin xóa 1 môn học theo ID
+
 - **Route:** `DELETE /admin/schedule/{id}`
 - **Yêu cầu Auth:** **Bắt buộc Admin**
 - **Path Parameter:** `id` (ID của bản ghi lịch học)
 - **Response (200 OK):**
+
 ```json
 {
   "message": "Đã xóa lịch học thành công",
@@ -291,11 +331,13 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ### 4.3. Admin xóa người dùng theo ID
+
 - **Route:** `DELETE /admin/user/{id}`
 - **Yêu cầu Auth:** **Bắt buộc Admin**
 - **Path Parameter:** `id` (ID của tài khoản người dùng)
 - **Mô tả:** Tự động xóa tài khoản và toàn bộ lịch học liên quan của người dùng đó.
 - **Response (200 OK):**
+
 ```json
 {
   "message": "Đã xóa người dùng thành công",
@@ -306,11 +348,14 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ---
 
 ## 🗄️ 5. Nhóm API CRUD Lịch Học MongoDB (Node.js Express Server)
-*Áp dụng trên Node.js Server (`http://localhost:5001` hoặc `5000`)*
+
+_Áp dụng trên Node.js Server (`http://localhost:5001` hoặc `3001`)_
 
 ### 5.1. Lấy tất cả lịch học
+
 - **Route:** `GET /api/lich-hoc`
 - **Response (200 OK):**
+
 ```json
 [
   {
@@ -330,8 +375,10 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ```
 
 ### 5.2. Thêm lịch học mới
+
 - **Route:** `POST /api/lich-hoc`
 - **Request Body (JSON):**
+
 ```json
 {
   "monHoc": "Lập trình Web",
@@ -344,7 +391,9 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
   "ghiChu": "Mang theo laptop"
 }
 ```
+
 - **Response (201 Created):**
+
 ```json
 {
   "message": "Thành công",
@@ -365,15 +414,18 @@ Tài liệu này cung cấp đầy đủ thông tin kỹ thuật về **tất c�
 ```
 
 ### 5.3. Xem chi tiết lịch học theo ID
+
 - **Route:** `GET /api/lich-hoc/{id}`
 - **Response (200 OK):** Trả về đối tượng chi tiết tương tự mục 5.2.
 
 ### 5.4. Sửa thông tin lịch học theo ID
+
 - **Route:** `PUT /api/lich-hoc/{id}`
 - **Request Body (JSON):** Truyền các trường cần cập nhật (ví dụ: `monHoc`, `phongHoc`, v.v.).
 - **Response (200 OK):** Trả về đối tượng sau khi đã sửa đổi.
 
 ### 5.5. Xóa lịch học theo ID
+
 - **Route:** `DELETE /api/lich-hoc/{id}`
 - **Response (200 OK):** `{"message": "Đã xóa"}`
 
@@ -385,7 +437,7 @@ Dưới đây là module gọi API mẫu sử dụng `fetch` hoặc `axios` đ�
 
 ```javascript
 // src/services/scheduleApi.js
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = "http://localhost:3001";
 
 // 1. Lưu token vào localStorage
 export const setAuthToken = (token) => {
@@ -433,9 +485,10 @@ export async function parseScheduleHtml(htmlString) {
 // 5. Lưu lịch học kèm Token người dùng
 export async function saveSchedule(eventsOrHtml) {
   const token = getAuthToken();
-  const body = typeof eventsOrHtml === "string" 
-    ? { html: eventsOrHtml } 
-    : { events: eventsOrHtml };
+  const body =
+    typeof eventsOrHtml === "string"
+      ? { html: eventsOrHtml }
+      : { events: eventsOrHtml };
 
   const res = await fetch(`${BASE_URL}/api/schedule`, {
     method: "POST",

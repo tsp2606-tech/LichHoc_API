@@ -11,10 +11,10 @@ const app = express();
 
 // Middleware CORS
 const allowedOrigins = [
-  'http://localhost:5173',
+  'http://localhost:3000',
   'http://localhost:5174',
   'http://localhost:3000',
-  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
   'http://127.0.0.1:5174',
 ];
 
@@ -67,7 +67,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/lich-hoc', lichHocRoutes);
 app.use('/api/lichhoc', lichHocRoutes); // Alias hỗ trợ gọi không có dấu gạch nối
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on: http://localhost:${PORT}`);
   console.log(`📚 Swagger Docs available at: http://localhost:${PORT}/api-docs`);
