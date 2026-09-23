@@ -1,0 +1,182 @@
+[
+  {
+    "class_code": "IS 301 E",
+    "subject": "Cơ Sở Dữ Liệu",
+    "room": "P. Online 20",
+    "location": "Online",
+    "start_time": "07:00",
+    "end_time": "09:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "CS 311 Q",
+    "subject": "Lập Trình Hướng Đối Tượng",
+    "room": "P. 308",
+    "location": "Hòa Khánh Nam - Tòa Nhà G",
+    "start_time": "07:00",
+    "end_time": "09:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "IS 301 E",
+    "subject": "Cơ Sở Dữ Liệu",
+    "room": "P. 308",
+    "location": "78A Phan Văn Trị",
+    "start_time": "07:00",
+    "end_time": "09:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "PHY 101 K3",
+    "subject": "Vật Lý Đại Cương 1",
+    "room": "P. 305",
+    "location": "K7/25 Quang Trung",
+    "start_time": "07:00",
+    "end_time": "11:15",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "CS 297 E",
+    "subject": "Đồ Án CDIO",
+    "room": "P. 403",
+    "location": "78A Phan Văn Trị",
+    "start_time": "09:15",
+    "end_time": "11:15",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "DS 103 CA",
+    "subject": "Các Ứng Dụng AI (Artificial Intelligence) Cơ Bản",
+    "room": "P. 308",
+    "location": "209 Phan Thanh",
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "PHY 101 K",
+    "subject": "Vật Lý Đại Cương 1",
+    "room": "P. Online 6",
+    "location": "Online",
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "PHY 101 K",
+    "subject": "Vật Lý Đại Cương 1",
+    "room": "P. 408",
+    "location": "209 Phan Thanh",
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "ES 221 AC",
+    "subject": "Bóng Đá Sơ Cấp",
+    "room": "P. Sân thể thao 2",
+    "location": "Hòa Khánh Nam - Tòa Nhà A",
+    "start_time": "14:00",
+    "end_time": "16:15",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "IS 301 E",
+    "subject": "Cơ Sở Dữ Liệu",
+    "room": "P. Online 20",
+    "location": "Online",
+    "start_time": "07:00",
+    "end_time": "09:00",
+    "day_index": 0,
+    "day_name": "Thứ 2"
+  },
+  {
+    "class_code": "CS 311 Q",
+    "subject": "Lập Trình Hướng Đối Tượng",
+    "room": "P. 308",
+    "location": "Hòa Khánh Nam - Tòa Nhà G",
+    "start_time": "07:00",
+    "end_time": "09:00",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  },
+  {
+    "class_code": "IS 301 E",
+    "subject": "Cơ Sở Dữ Liệu",
+    "room": "P. 308",
+    "location": "78A Phan Văn Trị",
+    "start_time": "07:00",
+    "end_time": "09:00",
+    "day_index": 2,
+    "day_name": "Thứ 4"
+  },
+  {
+    "class_code": "PHY 101 K3",
+    "subject": "Vật Lý Đại Cương 1",
+    "room": "P. 305",
+    "location": "K7/25 Quang Trung",
+    "start_time": "07:00",
+    "end_time": "11:15",
+    "day_index": 6,
+    "day_name": "Chủ nhật"
+  },
+  {
+    "class_code": "CS 297 E",
+    "subject": "Đồ Án CDIO",
+    "room": "P. 403",
+    "location": "78A Phan Văn Trị",
+    "start_time": "09:15",
+    "end_time": "11:15",
+    "day_index": 2,
+    "day_name": "Thứ 4"
+  },
+  {
+    "class_code": "DS 103 CA",
+    "subject": "Các Ứng Dụng AI (Artificial Intelligence) Cơ Bản",
+    "room": "P. 308",
+    "location": "209 Phan Thanh",
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "day_index": 0,
+    "day_name": "Thứ 2"
+  },
+  {
+    "class_code": "PHY 101 K",
+    "subject": "Vật Lý Đại Cương 1",
+    "room": "P. Online 6",
+    "location": "Online",
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "day_index": 2,
+    "day_name": "Thứ 4"
+  },
+  {
+    "class_code": "PHY 101 K",
+    "subject": "Vật Lý Đại Cương 1",
+    "room": "P. 408",
+    "location": "209 Phan Thanh",
+    "start_time": "13:00",
+    "end_time": "15:00",
+    "day_index": 5,
+    "day_name": "Thứ 7"
+  },
+  {
+    "class_code": "ES 221 AC",
+    "subject": "Bóng Đá Sơ Cấp",
+    "room": "P. Sân thể thao 2",
+    "location": "Hòa Khánh Nam - Tòa Nhà A",
+    "start_time": "14:00",
+    "end_time": "16:15",
+    "day_index": 1,
+    "day_name": "Thứ 3"
+  }
+]
