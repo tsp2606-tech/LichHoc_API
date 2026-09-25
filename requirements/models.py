@@ -73,6 +73,7 @@ class ScheduleEvent(db.Model):
     end_time = db.Column(db.String(10), default="")
     day_index = db.Column(db.Integer, default=0)
     day_name = db.Column(db.String(20), default="")
+    week_range = db.Column(db.String(100), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def to_dict(self) -> dict:
@@ -87,5 +88,6 @@ class ScheduleEvent(db.Model):
             "end_time": self.end_time,
             "day_index": self.day_index,
             "day_name": self.day_name,
+            "week_range": self.week_range,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

@@ -36,7 +36,7 @@ app.config["JWT_SECRET_KEY"] = os.environ.get(
     "JWT_SECRET_KEY", "schedule-jwt-secret-key-super-secure-production-ready-2026-token"
 )
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=7)
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = False  # Nhớ cho đến khi người dùng đăng xuất
 
 db.init_app(app)
@@ -56,6 +56,14 @@ def handle_options(path=""):
 
 with app.app_context():
     db.create_all()
+    # Migration: Đảm bảo bảng schedule_events có cột week_range
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(db.text("ALTER TABLE schedule_events ADD COLUMN week_range VARCHAR(100) DEFAULT ''"))
+            conn.commit()
+    except Exception:
+        pass
+
     # Tự động tạo/đồng bộ tài khoản Admin ADMIN@gmail.com / Admin123@
     admin = User.query.filter(db.func.lower(User.email) == "admin@gmail.com").first()
     if not admin:
@@ -134,29 +142,72 @@ def parse_apt_title(title: str) -> dict:
 def parse_schedule_html(html: str) -> list:
     """
     Duyệt bảng lịch, tìm mọi <div class="rsApt"> hoặc "rsAptSimple",
-    lấy thuộc tính title, kèm số cột (ngày trong tuần) tương ứng.
+    hỗ trợ nhiều tuần trong cùng đoạn HTML và trích xuất week_range tương ứng.
     """
     soup = BeautifulSoup(html, "html.parser")
     events = []
 
-    content_table = soup.find("table", class_="rsContentTable")
-    target = content_table if content_table else soup
+    # 1. Tìm các container đại diện cho từng tuần/scheduler
+    # myDTU thường bọc mỗi tuần trong .main-border-center hoặc .RadScheduler
+    containers = soup.find_all(class_=lambda c: c and ("main-border-center" in c or "RadScheduler" in c))
+    
+    # Nếu không tìm thấy container wrapper lớn, tìm tất cả table.rsContentTable
+    if not containers:
+        content_tables = soup.find_all("table", class_="rsContentTable")
+        if content_tables:
+            containers = content_tables
+        else:
+            containers = [soup]
 
-    rows = target.find_all("tr")
-    for row in rows:
-        cells = row.find_all("td", recursive=False)
-        for col_idx, cell in enumerate(cells):
-            apt_divs = cell.find_all("div", class_=lambda c: c and "rsApt" in c.split())
-            for apt in apt_divs:
-                title = apt.get("title", "").strip()
-                if not title:
-                    continue
-                event = parse_apt_title(title)
-                event["day_index"] = col_idx
-                event["day_name"] = (
-                    DAY_NAMES[col_idx] if col_idx < len(DAY_NAMES) else f"Cột {col_idx}"
-                )
-                events.append(event)
+    seen_tables = set()
+    for cont in containers:
+        # Trong container này, tìm các bảng rsContentTable
+        if cont.name == "table" and "rsContentTable" in (cont.get("class") or []):
+            tables = [cont]
+        else:
+            tables = cont.find_all("table", class_="rsContentTable")
+            if not tables:
+                tables = cont.find_all("table")
+
+        # Tìm week_range cho khối này
+        week_range = ""
+        if cont.name != "table":
+            h2_el = cont.find(["h2", "h3", "h1"])
+            if h2_el:
+                m = re.search(r"(\d{2}/\d{2}/\d{4}\s*-\s*\d{2}/\d{2}/\d{4})", h2_el.get_text())
+                if m:
+                    week_range = m.group(1).strip()
+
+        for table in tables:
+            tbl_key = id(table)
+            if tbl_key in seen_tables:
+                continue
+            seen_tables.add(tbl_key)
+
+            cur_week_range = week_range
+            if not cur_week_range:
+                prev_h2 = table.find_previous(["h2", "h3", "h1"])
+                if prev_h2:
+                    m = re.search(r"(\d{2}/\d{2}/\d{4}\s*-\s*\d{2}/\d{2}/\d{4})", prev_h2.get_text())
+                    if m:
+                        cur_week_range = m.group(1).strip()
+
+            rows = table.find_all("tr")
+            for row in rows:
+                cells = row.find_all("td", recursive=False)
+                for col_idx, cell in enumerate(cells):
+                    apt_divs = cell.find_all("div", class_=lambda c: c and "rsApt" in c.split())
+                    for apt in apt_divs:
+                        title = apt.get("title", "").strip()
+                        if not title:
+                            continue
+                        event = parse_apt_title(title)
+                        event["day_index"] = col_idx
+                        event["day_name"] = (
+                            DAY_NAMES[col_idx] if col_idx < len(DAY_NAMES) else f"Cột {col_idx}"
+                        )
+                        event["week_range"] = cur_week_range
+                        events.append(event)
 
     return events
 
@@ -233,13 +284,11 @@ def login():
         additional_claims={"is_admin": user.is_admin, "email": user.email}
     )
 
-    # Chỉ khi người dùng tick chọn "Remember me" thì mới cấp refresh_token và nhớ cho đến khi đăng xuất
-    refresh_token = None
-    if remember_me:
-        refresh_token = create_refresh_token(
-            identity=str(user.id),
-            additional_claims={"is_admin": user.is_admin, "email": user.email}
-        )
+    # Luôn cấp refresh_token và access_token để client tự động làm mới khi cần
+    refresh_token = create_refresh_token(
+        identity=str(user.id),
+        additional_claims={"is_admin": user.is_admin, "email": user.email}
+    )
 
     log_activity(
         action="Đăng nhập",
@@ -251,11 +300,10 @@ def login():
     res_body = {
         "message": "Đăng nhập thành công",
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "user": user.to_dict(),
         "remember_me": remember_me,
     }
-    if refresh_token:
-        res_body["refresh_token"] = refresh_token
 
     return jsonify(res_body), 200
 
@@ -403,8 +451,16 @@ def save_schedule():
     else:
         return jsonify({"error": "Dữ liệu không hợp lệ. Gửi 'events' (list) hoặc 'html' (str)"}), 400
 
-    # Xóa dữ liệu lịch cũ của user trước khi lưu đợt mới để tránh trùng lặp
-    ScheduleEvent.query.filter_by(user_id=user_id).delete()
+    # Xử lý cập nhật lịch học theo tuần:
+    # Nếu client gửi các events có week_range xác định, chỉ xóa và ghi đè những tuần được gửi lên
+    incoming_week_ranges = {ev.get("week_range") for ev in events_to_save if ev.get("week_range")}
+    if incoming_week_ranges:
+        for wr in incoming_week_ranges:
+            ScheduleEvent.query.filter_by(user_id=user_id, week_range=wr).delete()
+        # Dọn dẹp các sự kiện cũ không có thông tin tuần để tránh hiển thị đè
+        ScheduleEvent.query.filter_by(user_id=user_id, week_range="").delete()
+    else:
+        ScheduleEvent.query.filter_by(user_id=user_id).delete()
 
     saved_records = []
     for ev in events_to_save:
@@ -418,6 +474,7 @@ def save_schedule():
             end_time=ev.get("end_time", ""),
             day_index=ev.get("day_index", 0),
             day_name=ev.get("day_name", ""),
+            week_range=ev.get("week_range", ""),
         )
         db.session.add(record)
         saved_records.append(record)
