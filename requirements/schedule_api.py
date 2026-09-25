@@ -32,10 +32,12 @@ from models import db, User, ScheduleEvent, ActivityLog
 
 app = Flask(__name__)
 
-# Cấu hình Database & JWT (Tự động hỗ trợ SQLite local và PostgreSQL trên Render)
+# Cấu hình Database & JWT (Tự động hỗ trợ SQLite local và PostgreSQL trên Render/Supabase)
 raw_db_url = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(basedir, 'schedule.db')}")
 if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif raw_db_url.startswith("postgresql://") and not raw_db_url.startswith("postgresql+"):
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
