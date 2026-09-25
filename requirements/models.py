@@ -10,11 +10,14 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     name = db.Column(db.String(120), default="")
+    avatar = db.Column(db.String(500), default="")
+    google_id = db.Column(db.String(120), default="")
+    auth_type = db.Column(db.String(20), default="local")
 
     schedules = db.relationship(
         "ScheduleEvent",
@@ -27,6 +30,8 @@ class User(db.Model):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password: str) -> bool:
+        if not self.password_hash:
+            return False
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self) -> dict:
@@ -34,6 +39,9 @@ class User(db.Model):
             "id": self.id,
             "email": self.email,
             "name": self.name or (self.email.split("@")[0] if self.email else ""),
+            "avatar": self.avatar or "",
+            "google_id": self.google_id or "",
+            "auth_type": self.auth_type or "local",
             "is_admin": self.is_admin,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
