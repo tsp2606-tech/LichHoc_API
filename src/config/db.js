@@ -7,7 +7,7 @@ const connectDB = async () => {
     console.log('✅ MongoDB Connected');
   } catch (error) {
     console.error('❌ Connection Failed:', error.message);
-    process.exit(1);
+    console.warn('⚠️ Server vẫn tiếp tục chạy. Vui lòng kiểm tra kết nối mạng hoặc IP Whitelist trên MongoDB Atlas.');
   }
 };
 

@@ -14,6 +14,8 @@ class User(db.Model):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
+    name = db.Column(db.String(120), default="")
+
     schedules = db.relationship(
         "ScheduleEvent",
         backref="user",
@@ -31,7 +33,29 @@ class User(db.Model):
         return {
             "id": self.id,
             "email": self.email,
+            "name": self.name or (self.email.split("@")[0] if self.email else ""),
             "is_admin": self.is_admin,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ActivityLog(db.Model):
+    __tablename__ = "activity_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    user_email = db.Column(db.String(120), default="")
+    action = db.Column(db.String(100), nullable=False)
+    details = db.Column(db.String(255), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "user_email": self.user_email,
+            "action": self.action,
+            "details": self.details,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

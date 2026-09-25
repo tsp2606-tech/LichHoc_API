@@ -10,16 +10,19 @@ Chạy thử:
 
 import os
 import re
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from bs4 import BeautifulSoup
 from flask_jwt_extended import (
     JWTManager,
     create_access_token,
+    create_refresh_token,
     jwt_required,
     get_jwt_identity,
     get_jwt,
+    decode_token,
 )
-from models import db, User, ScheduleEvent
+from models import db, User, ScheduleEvent, ActivityLog
 
 app = Flask(__name__)
 
@@ -33,12 +36,61 @@ app.config["JWT_SECRET_KEY"] = os.environ.get(
     "JWT_SECRET_KEY", "schedule-jwt-secret-key-super-secure-production-ready-2026-token"
 )
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(minutes=15)
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = False  # Nhớ cho đến khi người dùng đăng xuất
 
 db.init_app(app)
 jwt = JWTManager(app)
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+@app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
+@app.route("/<path:path>", methods=["OPTIONS"])
+def handle_options(path=""):
+    return "", 204
+
 with app.app_context():
     db.create_all()
+    # Tự động tạo/đồng bộ tài khoản Admin ADMIN@gmail.com / Admin123@
+    admin = User.query.filter(db.func.lower(User.email) == "admin@gmail.com").first()
+    if not admin:
+        admin = User(email="ADMIN@gmail.com", name="Administrator", is_admin=True)
+        admin.set_password("Admin123@")
+        db.session.add(admin)
+        db.session.commit()
+    else:
+        admin.is_admin = True
+        if not admin.name:
+            admin.name = "Administrator"
+        admin.set_password("Admin123@")
+        db.session.commit()
+
+    # Xóa tài khoản demo admin cũ nếu có
+    demo = User.query.filter(db.func.lower(User.email) == "admin@lichhoc.local").first()
+    if demo:
+        db.session.delete(demo)
+        db.session.commit()
+
+def log_activity(action: str, details: str = "", user_id: int = None, user_email: str = ""):
+    """Ghi nhật ký hoạt động người dùng và hệ thống."""
+    try:
+        log = ActivityLog(
+            user_id=user_id,
+            user_email=user_email or "",
+            action=action,
+            details=details or "",
+            created_at=datetime.utcnow(),
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error writing activity log: {e}")
 
 # Thứ tự các cột trong bảng lịch (điều chỉnh nếu cổng trường bạn khác thứ tự)
 DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
@@ -87,7 +139,10 @@ def parse_schedule_html(html: str) -> list:
     soup = BeautifulSoup(html, "html.parser")
     events = []
 
-    rows = soup.find_all("tr")
+    content_table = soup.find("table", class_="rsContentTable")
+    target = content_table if content_table else soup
+
+    rows = target.find_all("tr")
     for row in rows:
         cells = row.find_all("td", recursive=False)
         for col_idx, cell in enumerate(cells):
@@ -132,18 +187,26 @@ def register():
     data = request.get_json(silent=True) or {}
     email = data.get("email", "").strip()
     password = data.get("password", "")
+    name = data.get("name", "").strip()
     is_admin = bool(data.get("is_admin", False))
 
     if not email or not password:
         return jsonify({"error": "Vui lòng cung cấp đầy đủ email và password"}), 400
 
-    if User.query.filter_by(email=email).first():
+    if User.query.filter(db.func.lower(User.email) == email.lower()).first():
         return jsonify({"error": "Email đã tồn tại trong hệ thống"}), 400
 
-    new_user = User(email=email, is_admin=is_admin)
+    new_user = User(email=email, name=name, is_admin=is_admin)
     new_user.set_password(password)
     db.session.add(new_user)
     db.session.commit()
+
+    log_activity(
+        action="Đăng ký tài khoản",
+        details=f"Tài khoản mới {new_user.email} ({new_user.name or 'Sinh viên'})",
+        user_id=new_user.id,
+        user_email=new_user.email
+    )
 
     return jsonify({
         "message": "Đăng ký thành công",
@@ -156,11 +219,12 @@ def login():
     data = request.get_json(silent=True) or {}
     email = data.get("email", "").strip()
     password = data.get("password", "")
+    remember_me = bool(data.get("remember_me", False))
 
     if not email or not password:
         return jsonify({"error": "Vui lòng cung cấp đầy đủ email và password"}), 400
 
-    user = User.query.filter_by(email=email).first()
+    user = User.query.filter(db.func.lower(User.email) == email.lower()).first()
     if not user or not user.check_password(password):
         return jsonify({"error": "Email hoặc mật khẩu không chính xác"}), 401
 
@@ -169,9 +233,135 @@ def login():
         additional_claims={"is_admin": user.is_admin, "email": user.email}
     )
 
-    return jsonify({
+    # Chỉ khi người dùng tick chọn "Remember me" thì mới cấp refresh_token và nhớ cho đến khi đăng xuất
+    refresh_token = None
+    if remember_me:
+        refresh_token = create_refresh_token(
+            identity=str(user.id),
+            additional_claims={"is_admin": user.is_admin, "email": user.email}
+        )
+
+    log_activity(
+        action="Đăng nhập",
+        details=f"Người dùng {user.email} đã đăng nhập (Ghi nhớ: {'Có' if remember_me else 'Không'})",
+        user_id=user.id,
+        user_email=user.email
+    )
+
+    res_body = {
         "message": "Đăng nhập thành công",
         "access_token": access_token,
+        "user": user.to_dict(),
+        "remember_me": remember_me,
+    }
+    if refresh_token:
+        res_body["refresh_token"] = refresh_token
+
+    return jsonify(res_body), 200
+
+
+@app.route("/api/auth/refresh", methods=["POST"])
+def refresh():
+    """Cấp lại access_token mới từ refresh_token khi access_token hết hạn."""
+    data = request.get_json(silent=True) or {}
+    token_str = data.get("refresh_token")
+
+    if not token_str:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token_str = auth_header.split(" ", 1)[1].strip()
+
+    if not token_str:
+        return jsonify({"error": "Thiếu refresh_token để làm mới phiên đăng nhập"}), 400
+
+    try:
+        decoded = decode_token(token_str)
+        if decoded.get("type") != "refresh":
+            return jsonify({"error": "Token được cung cấp không phải là refresh token"}), 401
+
+        user_id = int(decoded.get("sub"))
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "Không tìm thấy người dùng của phiên đăng nhập này"}), 404
+
+        new_access_token = create_access_token(
+            identity=str(user.id),
+            additional_claims={"is_admin": user.is_admin, "email": user.email}
+        )
+
+        return jsonify({
+            "message": "Làm mới phiên đăng nhập thành công",
+            "access_token": new_access_token,
+            "user": user.to_dict()
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"Refresh token không hợp lệ hoặc đã hết hạn: {str(e)}"}), 401
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    """Ghi nhận đăng xuất và xóa phiên làm việc."""
+    return jsonify({"message": "Đăng xuất thành công"}), 200
+
+
+@app.route("/api/auth/me", methods=["GET"])
+@jwt_required()
+def get_current_user_profile():
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Không tìm thấy người dùng"}), 404
+    return jsonify({"user": user.to_dict()}), 200
+
+
+@app.route("/api/auth/profile", methods=["PUT"])
+@jwt_required()
+def update_profile():
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Không tìm thấy người dùng"}), 404
+
+    data = request.get_json(silent=True) or {}
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
+
+    changes = []
+    if name is not None and name.strip() != (user.name or ""):
+        user.name = name.strip()
+        changes.append("họ tên")
+
+    if email is not None:
+        email = email.strip()
+        if email and email.lower() != user.email.lower():
+            existing = User.query.filter(db.func.lower(User.email) == email.lower()).first()
+            if existing and existing.id != user.id:
+                return jsonify({"error": "Email này đã được sử dụng bởi tài khoản khác"}), 400
+            user.email = email
+            changes.append("email")
+
+    if password:
+        password = str(password).strip()
+        if len(password) < 6:
+            return jsonify({"error": "Mật khẩu mới phải có ít nhất 6 ký tự"}), 400
+        user.set_password(password)
+        changes.append("mật khẩu")
+
+    if not changes:
+        return jsonify({"message": "Không có thông tin nào thay đổi", "user": user.to_dict()}), 200
+
+    db.session.commit()
+
+    log_activity(
+        action="Cập nhật hồ sơ",
+        details=f"Đã cập nhật: {', '.join(changes)}",
+        user_id=user.id,
+        user_email=user.email
+    )
+
+    return jsonify({
+        "message": "Cập nhật thông tin thành công",
         "user": user.to_dict()
     }), 200
 
@@ -213,6 +403,9 @@ def save_schedule():
     else:
         return jsonify({"error": "Dữ liệu không hợp lệ. Gửi 'events' (list) hoặc 'html' (str)"}), 400
 
+    # Xóa dữ liệu lịch cũ của user trước khi lưu đợt mới để tránh trùng lặp
+    ScheduleEvent.query.filter_by(user_id=user_id).delete()
+
     saved_records = []
     for ev in events_to_save:
         record = ScheduleEvent(
@@ -230,6 +423,15 @@ def save_schedule():
         saved_records.append(record)
 
     db.session.commit()
+
+    user = User.query.get(user_id)
+    user_email = user.email if user else ""
+    log_activity(
+        action="Đồng bộ lịch học",
+        details=f"Đã lưu {len(saved_records)} môn học vào hệ thống",
+        user_id=user_id,
+        user_email=user_email
+    )
 
     return jsonify({
         "message": "Lưu lịch học thành công",
@@ -400,21 +602,24 @@ ADMIN_DASHBOARD_TEMPLATE = """
 """
 
 
+def is_caller_admin():
+    """Kiểm tra người gọi request có quyền Admin hay không."""
+    claims = get_jwt()
+    if claims.get("is_admin", False):
+        return True
+    try:
+        user_id = int(get_jwt_identity())
+        user = User.query.get(user_id)
+        return bool(user and user.is_admin)
+    except Exception:
+        return False
+
+
 @app.route("/admin/dashboard", methods=["GET"])
 @jwt_required()
 def admin_dashboard():
     """Dashboard quản trị hệ thống - Chỉ Admin mới có quyền truy cập."""
-    claims = get_jwt()
-    is_admin = claims.get("is_admin", False)
-
-    # Kiểm tra thêm trong DB nếu claims chưa cập nhật
-    if not is_admin:
-        user_id = int(get_jwt_identity())
-        user = User.query.get(user_id)
-        if user and user.is_admin:
-            is_admin = True
-
-    if not is_admin:
+    if not is_caller_admin():
         return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
 
     users = User.query.order_by(User.id).all()
@@ -435,6 +640,7 @@ def admin_dashboard():
             ]
         }), 200
 
+    claims = get_jwt()
     admin_email = claims.get("email", "Admin")
     return render_template_string(
         ADMIN_DASHBOARD_TEMPLATE,
@@ -445,16 +651,121 @@ def admin_dashboard():
     )
 
 
+@app.route("/api/admin/users", methods=["GET"])
+@jwt_required()
+def admin_get_users():
+    """Lấy danh sách người dùng, hỗ trợ tìm kiếm theo tên hoặc email."""
+    if not is_caller_admin():
+        return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
+
+    search_query = request.args.get("q", "").strip()
+    query = User.query
+    if search_query:
+        pattern = f"%{search_query}%"
+        query = query.filter(
+            (User.email.ilike(pattern)) | (User.name.ilike(pattern))
+        )
+
+    users = query.order_by(User.id.asc()).all()
+    user_list = []
+    for u in users:
+        schedule_count = ScheduleEvent.query.filter_by(user_id=u.id).count()
+        user_list.append({
+            "id": u.id,
+            "email": u.email,
+            "name": u.name or (u.email.split("@")[0] if u.email else "Sinh viên"),
+            "is_admin": u.is_admin,
+            "role": "Quản trị viên" if u.is_admin else "Sinh viên",
+            "status": "Hoạt động",
+            "schedule_count": schedule_count,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        })
+
+    return jsonify({
+        "total": len(user_list),
+        "users": user_list
+    }), 200
+
+
+@app.route("/api/admin/users/<int:user_id>/role", methods=["PUT"])
+@jwt_required()
+def admin_update_user_role(user_id: int):
+    """Cấp quyền hoặc hạ cấp người dùng (is_admin: True/False)."""
+    if not is_caller_admin():
+        return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
+
+    current_admin_id = int(get_jwt_identity())
+    if current_admin_id == user_id:
+        return jsonify({"error": "Bạn không thể tự thay đổi vai trò của chính mình."}), 400
+
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({"error": "Không tìm thấy người dùng."}), 404
+
+    data = request.get_json(silent=True) or {}
+    new_is_admin = bool(data.get("is_admin", False))
+    target_user.is_admin = new_is_admin
+    db.session.commit()
+
+    curr_admin = User.query.get(current_admin_id)
+    admin_email = curr_admin.email if curr_admin else "Admin"
+    role_name = "Quản trị viên" if new_is_admin else "Sinh viên"
+
+    log_activity(
+        action="Phân quyền người dùng",
+        details=f"{admin_email} đã đặt vai trò cho {target_user.email} thành {role_name}",
+        user_id=current_admin_id,
+        user_email=admin_email
+    )
+
+    return jsonify({
+        "message": f"Đã cập nhật vai trò của {target_user.email} thành {role_name}",
+        "user": target_user.to_dict()
+    }), 200
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@app.route("/admin/user/<int:user_id>", methods=["DELETE"])
+@jwt_required()
+def admin_delete_user(user_id: int):
+    """Admin xóa 1 user và toàn bộ lịch học liên quan."""
+    if not is_caller_admin():
+        return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
+
+    curr_id = int(get_jwt_identity())
+    if curr_id == user_id:
+        return jsonify({"error": "Bạn không thể tự xóa tài khoản của chính mình."}), 400
+
+    target_user = User.query.get(user_id)
+    if not target_user:
+        return jsonify({"error": "Không tìm thấy người dùng cần xóa."}), 404
+
+    target_email = target_user.email
+    db.session.delete(target_user)
+    db.session.commit()
+
+    curr_admin = User.query.get(curr_id)
+    admin_email = curr_admin.email if curr_admin else "Admin"
+
+    log_activity(
+        action="Xóa người dùng",
+        details=f"{admin_email} đã xóa tài khoản và dữ liệu của {target_email}",
+        user_id=curr_id,
+        user_email=admin_email
+    )
+
+    return jsonify({
+        "message": f"Đã xóa người dùng {target_email} thành công",
+        "deleted_user_id": user_id
+    }), 200
+
+
 @app.route("/admin/schedule/<int:event_id>", methods=["DELETE"])
 @jwt_required()
 def admin_delete_schedule(event_id: int):
     """Admin xóa 1 bản ghi lịch học cụ thể."""
-    claims = get_jwt()
-    if not claims.get("is_admin", False):
-        user_id = int(get_jwt_identity())
-        user = User.query.get(user_id)
-        if not user or not user.is_admin:
-            return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
+    if not is_caller_admin():
+        return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
 
     event = ScheduleEvent.query.get(event_id)
     if not event:
@@ -465,24 +776,39 @@ def admin_delete_schedule(event_id: int):
     return jsonify({"message": "Đã xóa lịch học thành công", "deleted_id": event_id}), 200
 
 
-@app.route("/admin/user/<int:user_id>", methods=["DELETE"])
+@app.route("/api/admin/logs", methods=["GET"])
 @jwt_required()
-def admin_delete_user(user_id: int):
-    """Admin xóa 1 user và toàn bộ lịch học liên quan."""
-    claims = get_jwt()
-    if not claims.get("is_admin", False):
-        curr_id = int(get_jwt_identity())
-        user = User.query.get(curr_id)
-        if not user or not user.is_admin:
-            return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
+def admin_get_logs():
+    """Xem nhật ký hoạt động hệ thống và các thành viên khác."""
+    if not is_caller_admin():
+        return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
 
-    target_user = User.query.get(user_id)
-    if not target_user:
-        return jsonify({"error": "Không tìm thấy người dùng cần xóa"}), 404
+    limit = request.args.get("limit", 100, type=int)
+    logs = ActivityLog.query.order_by(ActivityLog.created_at.desc()).limit(limit).all()
+    return jsonify({
+        "total": len(logs),
+        "logs": [l.to_dict() for l in logs]
+    }), 200
 
-    db.session.delete(target_user)
-    db.session.commit()
-    return jsonify({"message": "Đã xóa người dùng thành công", "deleted_user_id": user_id}), 200
+
+@app.route("/api/admin/stats", methods=["GET"])
+@jwt_required()
+def admin_get_stats():
+    """Thống kê tổng quan cho Admin."""
+    if not is_caller_admin():
+        return jsonify({"error": "Quyền truy cập bị từ chối. Chỉ dành cho Admin."}), 403
+
+    total_users = User.query.count()
+    total_admins = User.query.filter_by(is_admin=True).count()
+    total_schedules = ScheduleEvent.query.count()
+    total_logs = ActivityLog.query.count()
+
+    return jsonify({
+        "total_users": total_users,
+        "total_admins": total_admins,
+        "total_schedules": total_schedules,
+        "total_logs": total_logs,
+    }), 200
 
 
 @app.route("/api/schedule/health", methods=["GET"])
@@ -491,4 +817,4 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=3001)
+    app.run(debug=True, host="0.0.0.0", port=3001)

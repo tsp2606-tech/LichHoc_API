@@ -67,8 +67,16 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/lich-hoc', lichHocRoutes);
 app.use('/api/lichhoc', lichHocRoutes); // Alias hỗ trợ gọi không có dấu gạch nối
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 5001;
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on: http://localhost:${PORT}`);
   console.log(`📚 Swagger Docs available at: http://localhost:${PORT}/api-docs`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Cổng ${PORT} đã bị chiếm dụng bởi tiến trình khác. Vui lòng tắt tiến trình cũ hoặc đổi PORT trong .env.`);
+  } else {
+    console.error('❌ Lỗi khởi động máy chủ:', err.message);
+  }
 });
