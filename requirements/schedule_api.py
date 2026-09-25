@@ -58,6 +58,15 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return response
 
+@app.route("/", methods=["GET"])
+def root_index():
+    return jsonify({
+        "status": "online",
+        "service": "LichHoc API",
+        "health": "/api/schedule/health",
+        "version": "1.0.0"
+    }), 200
+
 @app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
 @app.route("/<path:path>", methods=["OPTIONS"])
 def handle_options(path=""):
