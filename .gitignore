@@ -4,3 +4,4 @@ LichHoc.code-workspace
 __pycache__/
 *.py[cod]
 *$py.class
+/.venv/
