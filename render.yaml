@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: lichhoc-api
+    runtime: python
+    plan: free
+    rootDir: requirements
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT schedule_api:app
+    healthCheckPath: /api/schedule/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        sync: false
