@@ -1,4 +1,8 @@
 .env
-/node_modules
+/node_modules/
 LichHoc.code-workspace
-/.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/

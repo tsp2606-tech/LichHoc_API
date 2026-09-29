@@ -9,6 +9,7 @@ Chạy thử:
 """
 
 import os
+import sys
 import re
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
@@ -22,15 +23,23 @@ from flask_jwt_extended import (
     get_jwt,
     decode_token,
 )
+
+basedir = os.path.abspath(os.path.dirname(__file__))
+if basedir not in sys.path:
+    sys.path.insert(0, basedir)
+
 from models import db, User, ScheduleEvent, ActivityLog
 
 app = Flask(__name__)
 
-# Cấu hình Database & JWT
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL", f"sqlite:///{os.path.join(basedir, 'schedule.db')}"
-)
+# Cấu hình Database & JWT (Tự động hỗ trợ SQLite local và PostgreSQL trên Render/Supabase)
+raw_db_url = os.environ.get("DATABASE_URL", f"sqlite:///{os.path.join(basedir, 'schedule.db')}")
+if raw_db_url.startswith("postgres://"):
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif raw_db_url.startswith("postgresql://") and not raw_db_url.startswith("postgresql+"):
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JWT_SECRET_KEY"] = os.environ.get(
     "JWT_SECRET_KEY", "schedule-jwt-secret-key-super-secure-production-ready-2026-token"
@@ -48,6 +57,15 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     return response
+
+@app.route("/", methods=["GET"])
+def root_index():
+    return jsonify({
+        "status": "online",
+        "service": "LichHoc API",
+        "health": "/api/schedule/health",
+        "version": "1.0.0"
+    }), 200
 
 @app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
 @app.route("/<path:path>", methods=["OPTIONS"])
@@ -1016,4 +1034,6 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=3001)
+    port = int(os.environ.get("PORT", 3001))
+    debug_mode = os.environ.get("FLASK_ENV") == "development"
+    app.run(debug=debug_mode, host="0.0.0.0", port=port)
