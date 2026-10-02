@@ -11,6 +11,9 @@ Chạy thử:
 import os
 import sys
 import re
+import threading
+import time
+import urllib.request
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string
 from bs4 import BeautifulSoup
@@ -29,6 +32,17 @@ if basedir not in sys.path:
     sys.path.insert(0, basedir)
 
 from models import db, User, ScheduleEvent, ActivityLog
+
+def keep_awake():
+    while True:
+        time.sleep(14 * 60)  # Chờ 14 phút
+        try:
+            url = os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:5000")
+            urllib.request.urlopen(url, timeout=10)
+        except Exception as e:
+            print(f"[KeepAwake] Error pinging {url}: {e}")
+
+threading.Thread(target=keep_awake, daemon=True).start()
 
 app = Flask(__name__)
 
